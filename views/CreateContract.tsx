@@ -397,28 +397,32 @@ const Step1AIChat = ({
         const fullContext = newHistory.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.text}`).join('\n');
         updateData('description', fullContext);
 
+        // Trigger automatic generation
+        setIsGeneratingPreview(true);
+
         try {
+            // Get Chat Response
             const aiResponseText = await chatContractAssistant(newHistory, newUserMsg.text);
-            setMessages(prev => [...prev, { role: 'model', text: aiResponseText }]);
+            const updatedHistory = [...newHistory, { role: 'model' as const, text: aiResponseText }];
+            setMessages(updatedHistory);
+
+            // Automatically Generate Preview in Background
+            const fullContextForGen = updatedHistory.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.text}`).join('\n');
+            const contractDataToGen = {
+                ...data,
+                description: fullContextForGen
+            };
+            
+            const generatedHtml = await generateFullContractBody(contractDataToGen);
+            setPreviewContent(generatedHtml);
+            updateData('contentBody', generatedHtml);
+
         } catch (error) {
             setMessages(prev => [...prev, { role: 'model', text: 'Lo siento, hubo un error. Intenta de nuevo.' }]);
         } finally {
             setIsTyping(false);
+            setIsGeneratingPreview(false);
         }
-    };
-
-    const handleGeneratePreview = async () => {
-        setIsGeneratingPreview(true);
-        const fullContext = messages.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.text}`).join('\n');
-        const contractDataToGen = {
-            ...data,
-            description: fullContext
-        };
-
-        const generatedHtml = await generateFullContractBody(contractDataToGen);
-        setPreviewContent(generatedHtml);
-        updateData('contentBody', generatedHtml);
-        setIsGeneratingPreview(false);
     };
 
     const handleConfirm = () => {
@@ -500,22 +504,16 @@ const Step1AIChat = ({
                     
                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
                         <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                            <ClockIcon className="w-3 h-3"/> Est: 2 min
+                            <ClockIcon className="w-3 h-3"/> Generación automática activa
                         </span>
-                        <button 
-                            onClick={handleGeneratePreview}
-                            disabled={messages.length < 2 || isGeneratingPreview}
-                            className="bg-[#8B5CF6] text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-[#7C3AED] transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:grayscale">
-                            <SparklesIcon className="w-3 h-3"/>
-                            {isGeneratingPreview ? 'Generando...' : 'Generar Borrador'}
-                        </button>
+                        {/* Button Removed per request */}
                     </div>
                 </div>
             </div>
 
             {/* Preview Column - Updated to PAPER STYLE */}
             <div className="flex-1 bg-gray-100 rounded-3xl border border-gray-200 shadow-inner flex flex-col overflow-hidden relative">
-                {previewContent ? (
+                {previewContent || isGeneratingPreview ? (
                     <>
                          {/* Toolbar */}
                         <div className="bg-white border-b border-gray-200 p-3 flex justify-between items-center shrink-0">
@@ -524,24 +522,26 @@ const Step1AIChat = ({
                                     <FileTextIcon className="w-4 h-4"/> Vista Previa
                                 </span>
                                 <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold border border-green-200 flex items-center gap-1">
-                                    <PenToolIcon className="w-3 h-3"/> Editable
+                                    <PenToolIcon className="w-3 h-3"/> {isGeneratingPreview ? 'Escribiendo...' : 'Editable'}
                                 </span>
                             </div>
                             <button 
                                 onClick={handleConfirm}
-                                className="bg-gray-900 text-white px-5 py-2 rounded-lg font-bold text-xs shadow-md hover:bg-black transition-colors flex items-center gap-2">
+                                disabled={isGeneratingPreview}
+                                className="bg-gray-900 text-white px-5 py-2 rounded-lg font-bold text-xs shadow-md hover:bg-black transition-colors flex items-center gap-2 disabled:opacity-50">
                                 Continuar con este Borrador <ChevronRightIcon className="w-3 h-3"/>
                             </button>
                         </div>
                         
                         {/* Editor - Paper Style */}
-                        <div className="flex-1 overflow-y-auto p-8 flex justify-center">
+                        <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-200/50">
                             <div 
                                 ref={editorRef}
-                                className="bg-white shadow-xl min-h-[1000px] w-full max-w-[800px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800 text-justify border border-gray-200"
-                                contentEditable
+                                className="bg-white shadow-xl min-h-[1000px] w-full max-w-[800px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800 text-justify border border-gray-200 transition-opacity duration-300"
+                                contentEditable={!isGeneratingPreview} 
                                 suppressContentEditableWarning
                                 dangerouslySetInnerHTML={{ __html: previewContent }}
+                                style={{ opacity: previewContent ? 1 : 0.5 }}
                             />
                         </div>
                     </>
@@ -551,16 +551,17 @@ const Step1AIChat = ({
                             <LayoutIcon className="w-10 h-10 text-gray-400" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-500">Vista Previa del Documento</h3>
-                        <p className="text-sm max-w-xs mt-2">
-                            Conversa con el asistente para definir los detalles. Cuando estés listo, presiona <span className="font-bold text-purple-600">Generar Borrador</span> para ver el resultado aquí.
+                        <p className="text-sm max-w-xs mt-2 text-center">
+                            Conversa con el asistente para definir los detalles. 
+                            El documento se redactará automáticamente aquí mientras escribes.
                         </p>
                     </div>
                 )}
                 
-                {isGeneratingPreview && (
+                {isGeneratingPreview && !previewContent && (
                     <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
                         <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                        <p className="text-purple-600 font-bold animate-pulse">Redactando documento...</p>
+                        <p className="text-purple-600 font-bold animate-pulse">Iniciando redacción...</p>
                     </div>
                 )}
             </div>
@@ -984,6 +985,7 @@ const Step3 = ({ approvals, setApprovals, role, onNext, step, creationMethod }: 
 };
 
 const Step4 = ({ signers, setSigners, onNext, step, creationMethod }: { signers: Signer[], setSigners: (s: Signer[]) => void, onNext: () => void, step: number, creationMethod: 'STANDARD'|'AI' }) => {
+    // ... existing Step4 content unchanged ...
     return (
       <div className="max-w-5xl mx-auto animate-fade-in space-y-8">
           <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm">
@@ -1274,8 +1276,9 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
 
       if (step === 2) {
           if (data.creationMethod === 'AI') {
-              title = "Asistente de Creación";
-              subtitle = showAIWait ? "Solicitud en Proceso" : "Creación Asistida";
+              // Ensure Form View corresponds to "Revisión" (Step 2)
+              title = "Detalles y Revisión";
+              subtitle = "Paso 2";
           } else {
               title = "Detalles del Contrato";
               subtitle = "Información del Documento";
