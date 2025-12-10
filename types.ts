@@ -21,6 +21,7 @@ export interface ContractTemplate {
   icon?: string;
   category: string;
   content?: string; // Added for template body structure
+  isPrivate?: boolean; // New: User specific private template
 }
 
 export interface Signer {

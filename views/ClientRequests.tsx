@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
 import { SavedContract } from '../types';
-import { SearchIcon, SparklesIcon, FileTextIcon, MoreVerticalIcon, PlusIcon, PenToolIcon } from '../components/Icons';
+import { SearchIcon, SparklesIcon, FileTextIcon, MoreVerticalIcon, PlusIcon, PenToolIcon, LayoutIcon } from '../components/Icons';
 
 interface ClientRequestsProps {
     contracts: SavedContract[];
     onViewContract: (contract: SavedContract) => void;
     onCreateNew: () => void; // New prop to trigger creation
+    onSaveAsTemplate?: (contract: SavedContract) => void; // Prop for saving as template
 }
 
-export const ClientRequests: React.FC<ClientRequestsProps> = ({ contracts, onViewContract, onCreateNew }) => {
+export const ClientRequests: React.FC<ClientRequestsProps> = ({ contracts, onViewContract, onCreateNew, onSaveAsTemplate }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     // Filter contracts that are in progress (not signed/completed/rejected)
@@ -95,6 +96,9 @@ export const ClientRequests: React.FC<ClientRequestsProps> = ({ contracts, onVie
                         <tbody className="divide-y divide-gray-50">
                             {filtered.map(c => {
                                 const progress = getProgress(c.status);
+                                // Logic: Can be saved as template if it was created by AI and has been validated (is in INTERNAL_REVIEW or further)
+                                const canConvert = c.type === 'IA' && (c.status === 'INTERNAL_REVIEW' || c.status === 'EXTERNAL_VALIDATION' || c.status === 'SIGNATURE_PENDING');
+
                                 return (
                                 <tr key={c.id} className="hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => onViewContract(c)}>
                                     <td className="px-6 py-4">
@@ -119,11 +123,22 @@ export const ClientRequests: React.FC<ClientRequestsProps> = ({ contracts, onVie
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onViewContract(c); }}
-                                            className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm flex items-center gap-1 ml-auto">
-                                            <PenToolIcon className="w-3 h-3"/> {c.status === 'DRAFT' ? 'Editar' : 'Ver'}
-                                        </button>
+                                        <div className="flex justify-end gap-2">
+                                            {canConvert && onSaveAsTemplate && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(c); }}
+                                                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    title="Guardar como Plantilla Privada"
+                                                >
+                                                    <LayoutIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onViewContract(c); }}
+                                                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm flex items-center gap-1">
+                                                <PenToolIcon className="w-3 h-3"/> {c.status === 'DRAFT' ? 'Editar' : 'Ver'}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             )})}

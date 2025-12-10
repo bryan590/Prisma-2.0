@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ViewState, ContractTemplate, SavedContract, Contact, UserProfile, UserRole, LegalProcess } from './types';
 import { Dashboard } from './views/Dashboard';
@@ -16,8 +17,59 @@ import { Signatures } from './views/Signatures';
 import { 
     HomeIcon, PlusIcon, FileTextIcon, UsersIcon, SettingsIcon,
     SearchIcon, BellIcon, ActivityIcon, LockIcon, LogOutIcon, MessageCircleIcon,
-    MenuIcon, LayoutIcon, FeatherIcon
+    MenuIcon, LayoutIcon, FeatherIcon, ArrowLeftIcon, CheckIcon
 } from './components/Icons';
+
+// --- GLOBAL STEP INDICATOR COMPONENT ---
+const GlobalStepIndicator = ({ step, method }: { step: number, method: 'STANDARD' | 'AI' }) => {
+    const steps = method === 'AI' 
+      ? ['Asistente IA', 'Revisión', 'Aprobaciones', 'Firma', 'Fin']
+      : ['Selección', 'Datos', 'Aprobaciones', 'Firma', 'Fin'];
+    
+    return (
+      <div className="flex-1 flex justify-center items-center">
+        {/* Mobile View: Compact Text */}
+        <div className="md:hidden flex flex-col items-center">
+            <span className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Creación Asistida</span>
+            <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-900">Paso {step} de {steps.length}</span>
+                <span className="text-xs text-gray-500 font-medium">· {steps[step-1]}</span>
+            </div>
+            <div className="w-32 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                <div 
+                    className="h-full bg-indigo-600 transition-all duration-500"
+                    style={{ width: `${(step / steps.length) * 100}%` }}
+                ></div>
+            </div>
+        </div>
+
+        {/* Desktop View: Full Stepper */}
+        <div className="hidden md:flex items-center gap-2">
+            {steps.map((label, idx) => {
+               const s = idx + 1;
+               const isActive = step === s;
+               const isCompleted = step > s;
+               
+               return (
+                  <div key={s} className="flex items-center">
+                      <div className={`flex flex-col items-center gap-1`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border-2 
+                              ${isActive ? 'border-indigo-600 bg-white text-indigo-600 shadow-md scale-110' : 
+                              (isCompleted ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-400')}`}>
+                              {isCompleted ? <CheckIcon className="w-4 h-4" /> : s}
+                          </div>
+                          {isActive && <span className="absolute top-10 text-[10px] font-bold uppercase text-indigo-600 whitespace-nowrap animate-fade-in bg-white px-2 py-0.5 rounded-full shadow-sm border border-indigo-50">{label}</span>}
+                      </div>
+                      {s < 5 && (
+                          <div className={`w-12 h-0.5 mx-2 transition-all duration-500 ${isCompleted ? 'bg-indigo-600' : 'bg-gray-200'}`}></div>
+                      )}
+                  </div>
+               );
+            })}
+        </div>
+      </div>
+    );
+};
 
 const App = () => {
   // Initial View is Login
@@ -29,6 +81,10 @@ const App = () => {
   
   const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
   const [contractToReview, setContractToReview] = useState<SavedContract | undefined>(undefined);
+
+  // --- LIFTED STATE FOR CREATE FLOW ---
+  const [createStep, setCreateStep] = useState(1);
+  const [createMethod, setCreateMethod] = useState<'STANDARD' | 'AI'>('STANDARD');
 
   // Global State for Contracts
   const [contracts, setContracts] = useState<SavedContract[]>([
@@ -101,12 +157,14 @@ const App = () => {
         setSelectedTemplate(template);
     }
     setContractToReview(undefined);
+    setCreateStep(1); // Reset step
     setCurrentView('create');
   };
 
   const handleCreateNewRequest = () => {
       setSelectedTemplate(null);
       setContractToReview(undefined);
+      setCreateStep(1); // Reset step
       setCurrentView('create');
   }
 
@@ -116,6 +174,7 @@ const App = () => {
       if (userRole === 'LAWYER' && contract.status === 'PENDING_LEGAL_VALIDATION') {
           setCurrentView('ai_validation_detail');
       } else {
+          setCreateStep(1); // Will be adjusted by CreateContract useEffect
           setCurrentView('create');
       }
   };
@@ -149,6 +208,37 @@ const App = () => {
 
   const handleAddTemplate = (newTemplate: ContractTemplate) => {
       setTemplates([...templates, newTemplate]);
+  };
+
+  const handleSaveAsTemplate = (contract: SavedContract) => {
+    // Logic to convert a contract to a template
+    // It should try to strip specific data
+    let cleanContent = contract.data?.contentBody || '';
+    const data = contract.data || {} as any;
+
+    // Simple replacement strategy for demo purposes:
+    // Replace known specific values with generic placeholders to "clean" the template
+    if (data.contractorName) cleanContent = cleanContent.replace(new RegExp(data.contractorName, 'g'), '[CONTRATISTA]');
+    if (data.clientName) cleanContent = cleanContent.replace(new RegExp(data.clientName, 'g'), '[CLIENTE]');
+    if (data.price) cleanContent = cleanContent.replace(new RegExp(data.price, 'g'), '[MONTO]');
+    if (data.serviceName) cleanContent = cleanContent.replace(new RegExp(data.serviceName, 'g'), '[SERVICIO]');
+    
+    // Also remove DNI/RUC if possible
+    if (data.contractorId) cleanContent = cleanContent.replace(new RegExp(data.contractorId, 'g'), '[ID_CONTRATISTA]');
+
+    const newTemplate: ContractTemplate = {
+        id: `TPL-PVT-${Date.now()}`,
+        name: `Plantilla: ${contract.name}`,
+        description: `Plantilla privada generada a partir de la solicitud ${contract.id}`,
+        category: 'Mis Plantillas',
+        color: 'bg-indigo-50',
+        icon: '⭐',
+        content: cleanContent,
+        isPrivate: true
+    };
+
+    setTemplates([...templates, newTemplate]);
+    alert('¡Plantilla guardada con éxito! La encontrarás en "Mis Plantillas".');
   };
 
   const SidebarItem = ({ view, icon: Icon, label }: { view: ViewState, icon: any, label: string }) => {
@@ -261,14 +351,37 @@ const App = () => {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Top Navbar */}
         <div className="h-16 flex items-center justify-between px-6 shrink-0 bg-white border-b border-gray-200 z-10 sticky top-0">
-            <button 
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
-                <MenuIcon className="w-6 h-6"/>
-            </button>
-            <div className="flex-1 px-8">
-                 {/* Breadcrumbs or Title could go here */}
+            <div className="flex items-center gap-4">
+                <button 
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
+                    <MenuIcon className="w-6 h-6"/>
+                </button>
+                {/* Specific Back Button for Creation Flow */}
+                {currentView === 'create' && (
+                    <button 
+                        onClick={() => {
+                            if (createStep > 1) {
+                                setCreateStep(createStep - 1);
+                            } else {
+                                setCurrentView('dashboard');
+                            }
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center gap-2"
+                        title="Volver"
+                    >
+                        <ArrowLeftIcon className="w-5 h-5"/>
+                    </button>
+                )}
             </div>
+            
+            <div className="flex-1 px-4 md:px-8 flex items-center justify-center">
+                 {/* Insert Steps Here for Creation View */}
+                 {currentView === 'create' && (
+                     <GlobalStepIndicator step={createStep} method={createMethod} />
+                 )}
+            </div>
+
             <div className="flex items-center gap-4">
                 <button className="relative group p-2 hover:bg-gray-100 rounded-full transition-colors">
                     <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></div>
@@ -280,10 +393,24 @@ const App = () => {
         {/* View Content */}
         <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
             {currentView === 'dashboard' && <Dashboard role={userRole} onUseTemplate={handleUseTemplate} contracts={contracts} templates={templates} onNavigate={setCurrentView} onReviewContract={handleReviewContract}/>}
-            {currentView === 'create' && <CreateContract role={userRole} existingContract={contractToReview} initialTemplate={selectedTemplate} templates={templates} onBack={() => setCurrentView('dashboard')} onFinish={handleAddContract} />}
+            
+            {currentView === 'create' && <CreateContract 
+                role={userRole} 
+                existingContract={contractToReview} 
+                initialTemplate={selectedTemplate} 
+                templates={templates} 
+                onBack={() => setCurrentView('dashboard')} 
+                onFinish={handleAddContract}
+                // Props for Global State Steps
+                currentStep={createStep}
+                setStep={setCreateStep}
+                creationMethod={createMethod}
+                setCreationMethod={setCreateMethod}
+            />}
+            
             {currentView === 'ai_validation_detail' && contractToReview && <AIValidationDetail contract={contractToReview} onBack={() => setCurrentView('dashboard')} onApprove={(c) => handleAddContract({...c, status: 'INTERNAL_REVIEW'})} onReject={(id) => { handleDeleteContract(id); setCurrentView('dashboard'); }} />}
             {currentView === 'contracts' && <Contracts contracts={contracts} onDelete={handleDeleteContract} />}
-            {currentView === 'client_requests' && <ClientRequests contracts={contracts} onViewContract={handleReviewContract} onCreateNew={handleCreateNewRequest} />}
+            {currentView === 'client_requests' && <ClientRequests contracts={contracts} onViewContract={handleReviewContract} onCreateNew={handleCreateNewRequest} onSaveAsTemplate={handleSaveAsTemplate} />}
             {currentView === 'chatbot' && <LegalChatbot />}
             {currentView === 'contacts' && <Contacts contacts={contacts} onAdd={handleAddContact} onDelete={handleDeleteContact} />}
             {currentView === 'settings' && <Settings profile={userProfile} onUpdate={setUserProfile} />}

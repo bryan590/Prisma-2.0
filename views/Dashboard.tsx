@@ -221,7 +221,7 @@ const ClientTemplates: React.FC<Omit<DashboardProps, 'role' | 'onReviewContract'
         
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
-            {['Todas', 'RRHH', 'Comercial', 'Legal', 'Inmobiliario', 'Tecnología'].map((tag) => (
+            {['Todas', 'Mis Plantillas', 'RRHH', 'Comercial', 'Legal', 'Inmobiliario', 'Tecnología'].map((tag) => (
             <button 
                 key={tag} 
                 onClick={() => setActiveFilter(tag)}
@@ -246,8 +246,11 @@ const ClientTemplates: React.FC<Omit<DashboardProps, 'role' | 'onReviewContract'
                     </div>
                 </div>
                 <div className="p-6 rounded-b-2xl flex-1 flex flex-col">
-                        <h4 className="font-bold text-gray-900 text-lg mb-1">{t.name}</h4>
-                        <p className="text-gray-500 text-sm mb-6 flex-1">{t.description}</p>
+                        <div className="flex justify-between items-start mb-1">
+                            <h4 className="font-bold text-gray-900 text-lg">{t.name}</h4>
+                            {t.isPrivate && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold uppercase border border-indigo-100">Privada</span>}
+                        </div>
+                        <p className="text-gray-500 text-sm mb-6 flex-1 line-clamp-3">{t.description}</p>
                         <div className="flex gap-3 mt-auto">
                         <button 
                             onClick={() => onUseTemplate(t)}
@@ -263,6 +266,11 @@ const ClientTemplates: React.FC<Omit<DashboardProps, 'role' | 'onReviewContract'
                 </div>
             </div>
             ))}
+            {filteredTemplates.length === 0 && (
+                <div className="col-span-full py-20 text-center text-gray-400">
+                    <p>No se encontraron plantillas en esta categoría.</p>
+                </div>
+            )}
         </div>
       </div>
       
