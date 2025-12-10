@@ -92,7 +92,7 @@ const App = () => {
     { id: '2', name: 'NDA - Nuevo Empleado', type: 'RRHH', date: '10/11/25', endDate: '2026-01-01', status: 'SIGNATURE_PENDING', signers: [] },
     { id: '3', name: 'Alquiler Oficinas Centrales', type: 'Inmobiliario', date: '08/05/25', endDate: '2025-06-01', status: 'SIGNATURE_PENDING', signers: [] },
     { id: '4', name: 'Consultoría Marketing Q2', type: 'Comercial', date: '05/05/25', endDate: '2025-08-01', status: 'SIGNED', signers: [] },
-    { id: 'DRAFT-4501', name: 'Convenio de Prácticas', type: 'IA', date: '04/12/2025', endDate: '', status: 'PENDING_LEGAL_VALIDATION', signers: [], data: {
+    { id: 'REQ-IA-4501', name: 'Convenio de Prácticas', type: 'IA', date: '04/12/2025', endDate: '', status: 'PENDING_LEGAL_VALIDATION', signers: [], data: {
         useAI: true, creationMethod: 'AI', contractorName: 'Cliente Interno', contractorId: '201010101', contractorAddress: '', contractorCity: '', contractorZip: '', contractorEmail: '', 
         clientName: 'Ana García', clientRep: false, startDate: '2025-01-01', endDate: '2025-12-31', serviceName: 'Prácticas Pre-Profesionales', price: '1025', currency: 'PEN', quantity: '1', description: 'Convenio de prácticas para estudiante de administración por 6 meses.', paymentType: 'monthly', totalAmount: '', hasPenalty: false, contractorType: 'company',
         contentBody: `<h2>CONVENIO DE PRÁCTICAS</h2><p>El presente documento regula las prácticas...</p><h3>CLÁUSULA PRIMERA: OBJETO</h3><p>El presente contrato tiene por objeto...</p>`

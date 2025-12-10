@@ -423,7 +423,8 @@ const Step2 = ({
     handleSaveDraft, 
     handleNext,
     onPreview,
-    isLawyerValidation 
+    isLawyerValidation,
+    contractId // Prop for ID
 }: any) => {
     // Determine Template Type for Dynamic Fields
     const templateName = (data.templateName || '').toLowerCase();
@@ -495,7 +496,7 @@ const Step2 = ({
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-left max-w-md mx-auto space-y-4">
                     <div className="flex justify-between text-sm py-2 border-b border-gray-50">
                         <span className="text-gray-500">Ticket de Solicitud</span>
-                        <span className="font-mono font-bold text-gray-900">REQ-{Math.floor(Math.random()*10000)}</span>
+                        <span className="font-mono font-bold text-gray-900">{contractId}</span>
                     </div>
                     <div className="flex justify-between text-sm py-2 border-b border-gray-50">
                         <span className="text-gray-500">Tiempo de Respuesta</span>
@@ -692,6 +693,9 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   const [showTemplateSelector, setShowTemplateSelector] = useState(!existingContract && !initialTemplate);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
+  // New State for Contract ID (Stable for session)
+  const [generatedId, setGeneratedId] = useState(existingContract?.id || '');
+
   // Initialize
   useEffect(() => {
       if (initialTemplate) {
@@ -779,8 +783,9 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   };
 
   const handleSaveDraft = (status: ContractState = 'DRAFT') => {
+      const finalId = existingContract?.id || generatedId || `CTR-${Math.floor(Math.random() * 10000)}`;
       const draft: SavedContract = {
-          id: existingContract?.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
+          id: finalId,
           name: data.serviceName || (data.creationMethod === 'AI' ? 'Solicitud IA' : `Contrato ${data.templateName || 'Borrador'}`),
           type: data.creationMethod === 'AI' ? 'IA' : (data.templateName || 'Servicios'),
           date: new Date().toLocaleDateString(),
@@ -795,12 +800,12 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   };
 
   const handleFinishContract = () => {
-      const finalCode = 'CTR-' + Math.floor(Math.random() * 10000);
-      setGeneratedCode(finalCode);
-      // Update contract to SIGNATURE_PENDING or COMPLETED based on flow
-      // Here we assume it goes to SIGNATURE_PENDING
+      // Use the stable ID
+      const finalId = existingContract?.id || generatedId || `CTR-${Math.floor(Math.random() * 10000)}`;
+      setGeneratedCode(finalId);
+      
       const finalContract: SavedContract = {
-          id: existingContract?.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
+          id: finalId,
           name: data.serviceName || 'Contrato Final',
           type: data.creationMethod === 'AI' ? 'IA' : 'Estándar',
           date: new Date().toLocaleDateString(),
@@ -840,6 +845,15 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
              <Step1Selection onSelect={(method) => { 
                 setCreationMethod(method);
                 updateData('creationMethod', method); 
+                
+                // Generate ID based on method if new
+                if (!existingContract) {
+                     const newId = method === 'AI' 
+                        ? `REQ-IA-${Math.floor(Math.random() * 9000) + 1000}`
+                        : `CTR-${Math.floor(Math.random() * 9000) + 1000}`;
+                     setGeneratedId(newId);
+                }
+
                 if(method === 'STANDARD') {
                     setIsTemplateModalOpen(true);
                 } else {
@@ -867,6 +881,7 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
                 handleNext={handleNext}
                 onPreview={() => { if(!data.contentBody) generateDocument(); setIsPreviewOpen(true); }}
                 isLawyerValidation={role === 'LAWYER' && data.creationMethod === 'AI'}
+                contractId={existingContract?.id || generatedId}
              />
          )}
 
