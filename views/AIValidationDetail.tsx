@@ -13,6 +13,9 @@ interface AIValidationDetailProps {
 export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract, onBack, onApprove, onReject }) => {
     const [editableContent, setEditableContent] = useState(contract.data?.contentBody || '');
     const [isEditing, setIsEditing] = useState(false);
+    const [showRequestChangesModal, setShowRequestChangesModal] = useState(false);
+    const [changeComments, setChangeComments] = useState('');
+    
     const editorRef = useRef<HTMLDivElement>(null);
 
     const handleApprove = () => {
@@ -26,13 +29,12 @@ export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract
         onApprove(updatedContract);
     };
 
-    const handleRequestChanges = () => {
-        const comments = prompt("Ingrese los comentarios para solicitar cambios:");
-        if (comments) {
-            alert("Se han enviado los comentarios al cliente y el estado ha cambiado a 'Requiere Ajustes'.");
-            // In a real app, this would update the contract status and save the comments
-            onBack();
-        }
+    const submitChangesRequest = () => {
+        if (!changeComments.trim()) return;
+        alert("Se han enviado los comentarios al cliente y el estado ha cambiado a 'Requiere Ajustes'.");
+        // In a real app, this would update the contract status and save the comments
+        setShowRequestChangesModal(false);
+        onBack();
     };
 
     const handleHighlight = () => {
@@ -78,7 +80,7 @@ export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract
                         Rechazar
                     </button>
                     <button 
-                        onClick={handleRequestChanges}
+                        onClick={() => setShowRequestChangesModal(true)}
                         className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors flex items-center gap-2">
                         <MessageCircleIcon className="w-4 h-4"/>
                         Solicitar Cambios
@@ -130,10 +132,10 @@ export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract
                     </div>
                 </div>
 
-                {/* Right: Editable Preview */}
-                <div className="w-2/3 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden relative">
+                {/* Right: Editable Preview - PAPER STYLE */}
+                <div className="w-2/3 bg-gray-100 rounded-2xl border border-gray-200 shadow-inner flex flex-col overflow-hidden relative">
                     {/* Editor Header / Toolbar */}
-                    <div className="h-14 border-b border-gray-100 bg-white flex items-center justify-between px-6 shrink-0">
+                    <div className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6 shrink-0">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Borrador Generado por IA</span>
                         
                         <div className="flex items-center gap-4">
@@ -158,8 +160,8 @@ export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract
                         </div>
                     </div>
                     
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-10 bg-white">
+                    {/* Content - A4 Paper Style */}
+                    <div className="flex-1 overflow-y-auto p-8 flex justify-center">
                          <div 
                             id="contract-editor"
                             ref={editorRef}
@@ -170,13 +172,56 @@ export const AIValidationDetail: React.FC<AIValidationDetailProps> = ({ contract
                                 setIsEditing(true);
                                 setTimeout(() => setIsEditing(false), 1000);
                             }}
-                            className="prose prose-sm max-w-none font-serif text-gray-800 outline-none focus:outline-none min-h-full"
+                            className="bg-white shadow-xl min-h-[1000px] w-full max-w-[800px] p-12 md:p-16 border border-gray-200 prose prose-sm max-w-none font-serif text-gray-800 outline-none focus:outline-none text-justify"
                             style={{ whiteSpace: 'pre-wrap' }}
                             dangerouslySetInnerHTML={{ __html: editableContent }}
                          />
                     </div>
                 </div>
             </div>
+
+            {/* Request Changes Modal */}
+            {showRequestChangesModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 animate-scale-in">
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <MessageCircleIcon className="w-5 h-5 text-indigo-600"/>
+                                Solicitar Cambios
+                            </h3>
+                            <button onClick={() => setShowRequestChangesModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <XIcon className="w-5 h-5"/>
+                            </button>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 mb-4">
+                            Describe los ajustes que necesitas que realice el solicitante. Estos comentarios serán enviados y el estado pasará a "Requiere Ajustes".
+                        </p>
+
+                        <textarea 
+                            className="w-full border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none resize-none h-32 bg-gray-50 focus:bg-white transition-all"
+                            placeholder="Escribe tus comentarios aquí..."
+                            value={changeComments}
+                            onChange={(e) => setChangeComments(e.target.value)}
+                            autoFocus
+                        />
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button 
+                                onClick={() => setShowRequestChangesModal(false)}
+                                className="px-4 py-2 text-gray-600 font-bold text-sm hover:bg-gray-50 rounded-lg transition-colors">
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={submitChangesRequest}
+                                disabled={!changeComments.trim()}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                                Enviar Solicitud
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

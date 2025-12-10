@@ -246,7 +246,7 @@ export const TemplateManagement: React.FC<TemplateManagementProps> = ({ template
                              </div>
                         </div>
 
-                        {/* Right Panel: Document Editor */}
+                        {/* Right Panel: Document Editor - PAPER STYLE */}
                         <div className="w-2/3 bg-gray-100 rounded-2xl border border-gray-200 shadow-inner overflow-hidden flex flex-col relative">
                             {/* Toolbar */}
                             <div className="bg-white border-b border-gray-200 p-2 flex gap-2 items-center justify-center shrink-0">
@@ -259,7 +259,7 @@ export const TemplateManagement: React.FC<TemplateManagementProps> = ({ template
                             <div className="flex-1 overflow-y-auto p-8 flex justify-center">
                                 <div 
                                     ref={editorRef}
-                                    className="bg-white shadow-xl w-full max-w-[800px] min-h-[1000px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800"
+                                    className="bg-white shadow-xl w-full max-w-[800px] min-h-[1000px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800 text-justify border border-gray-200"
                                     contentEditable
                                     suppressContentEditableWarning
                                     dangerouslySetInnerHTML={{ __html: templateForm.content || '' }}

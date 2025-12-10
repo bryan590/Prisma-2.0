@@ -12,14 +12,12 @@ interface CreateContractProps {
   role: UserRole;
   onBack: () => void;
   onFinish: (contract: SavedContract) => void;
+  onSaveTemplate?: (contract: SavedContract) => void;
   existingContract?: SavedContract;
   initialTemplate?: ContractTemplate | null;
   templates?: ContractTemplate[];
-  // New Props for Global Steps
-  currentStep: number;
-  setStep: (step: number) => void;
-  creationMethod: 'STANDARD' | 'AI';
-  setCreationMethod: (method: 'STANDARD' | 'AI') => void;
+  // Lifting state up for header rendering
+  setStepInfo: (info: { step: number, total: number, labels: string[], title: string, subtitle: string }) => void;
 }
 
 const INITIAL_DATA: ContractData = {
@@ -76,7 +74,7 @@ const InputField = ({ label, placeholder, value, onChange, type = "text", requir
     </div>
 );
 
-// --- MODAL COMPONENT ---
+// --- MODALS ---
 
 const TemplateSelector = ({ templates, onClose, onSelect }: { templates: ContractTemplate[], onClose: () => void, onSelect: (template: ContractTemplate) => void }) => {
     const [search, setSearch] = useState('');
@@ -85,7 +83,6 @@ const TemplateSelector = ({ templates, onClose, onSelect }: { templates: Contrac
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-scale-in">
-                
                 {/* Header */}
                 <div className="p-8 pb-4 border-b border-gray-100 flex justify-between items-start">
                     <div>
@@ -96,7 +93,6 @@ const TemplateSelector = ({ templates, onClose, onSelect }: { templates: Contrac
                         <XIcon className="w-6 h-6"/>
                     </button>
                 </div>
-
                 {/* Search */}
                 <div className="px-8 py-4 bg-gray-50 border-b border-gray-100">
                     <div className="bg-white border border-gray-200 rounded-xl flex items-center px-4 py-3 shadow-sm">
@@ -111,7 +107,6 @@ const TemplateSelector = ({ templates, onClose, onSelect }: { templates: Contrac
                         />
                     </div>
                 </div>
-
                 {/* Grid */}
                 <div className="p-8 overflow-y-auto bg-gray-50/50">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -135,13 +130,176 @@ const TemplateSelector = ({ templates, onClose, onSelect }: { templates: Contrac
                         ))}
                     </div>
                 </div>
-
                 {/* Footer */}
                 <div className="p-6 border-t border-gray-100 bg-white flex justify-start">
                     <button 
                         onClick={onClose}
                         className="flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-gray-800 transition-colors px-4 py-2 hover:bg-gray-50 rounded-lg">
                         <ArrowLeftIcon className="w-4 h-4"/> Volver
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TemplateConversionModal = ({ isOpen, onClose, contractData, originalContent, onConfirm }: { isOpen: boolean, onClose: () => void, contractData: ContractData, originalContent: string, onConfirm: (templateData: Partial<ContractTemplate>) => void }) => {
+    const [templateName, setTemplateName] = useState(contractData.serviceName ? `Plantilla: ${contractData.serviceName}` : 'Nueva Plantilla Inteligente');
+    const [selectedVars, setSelectedVars] = useState<Record<string, boolean>>({
+        'contractorName': true,
+        'clientName': true,
+        'price': true,
+        'startDate': true,
+        'endDate': true,
+        'serviceName': true
+    });
+
+    if (!isOpen) return null;
+
+    // Helper to escape regex
+    const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Mappings
+    const variableMap: Record<string, string> = {
+        'contractorName': '{{PROVEEDOR}}',
+        'clientName': '{{CLIENTE}}',
+        'price': '{{MONTO}}',
+        'startDate': '{{FECHA_INICIO}}',
+        'endDate': '{{FECHA_FIN}}',
+        'serviceName': '{{SERVICIO}}'
+    };
+
+    const labelMap: Record<string, string> = {
+        'contractorName': 'Nombre Proveedor',
+        'clientName': 'Nombre Cliente',
+        'price': 'Monto/Precio',
+        'startDate': 'Fecha Inicio',
+        'endDate': 'Fecha Fin',
+        'serviceName': 'Descripción Servicio'
+    };
+
+    // Generate preview content based on selection
+    let previewHtml = originalContent;
+    Object.keys(selectedVars).forEach(key => {
+        if (selectedVars[key] && (contractData as any)[key]) {
+            const val = (contractData as any)[key];
+            const variable = variableMap[key];
+            if (val) {
+                // Global replace of value with highlighted variable
+                previewHtml = previewHtml.replace(
+                    new RegExp(escapeRegExp(val), 'g'), 
+                    `<span class="bg-indigo-100 text-indigo-700 px-1 rounded font-bold border border-indigo-200 text-xs">${variable}</span>`
+                );
+            }
+        }
+    });
+
+    const handleConfirm = () => {
+        // Create final content string
+        let finalContent = originalContent;
+        Object.keys(selectedVars).forEach(key => {
+            if (selectedVars[key] && (contractData as any)[key]) {
+                const val = (contractData as any)[key];
+                const variable = variableMap[key];
+                if (val) {
+                    finalContent = finalContent.replace(new RegExp(escapeRegExp(val), 'g'), `<span class="variable" contenteditable="false">${variable}</span>`);
+                }
+            }
+        });
+
+        onConfirm({
+            name: templateName,
+            description: `Plantilla generada automáticamente desde solicitud IA.`,
+            category: 'IA Templates',
+            content: finalContent,
+            icon: '🧠',
+            color: 'bg-purple-50'
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-6xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+                {/* Header */}
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-indigo-50 to-white">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
+                            <SparklesIcon className="w-6 h-6"/>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">Conversión a Plantilla Inteligente</h2>
+                            <p className="text-sm text-gray-500 flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                Motor de IA: Patrones detectados
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400">
+                        <XIcon className="w-6 h-6"/>
+                    </button>
+                </div>
+
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Settings Sidebar */}
+                    <div className="w-1/3 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto">
+                        <div className="mb-6">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Nombre de la Plantilla</label>
+                            <input 
+                                value={templateName}
+                                onChange={(e) => setTemplateName(e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+                            />
+                        </div>
+
+                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <PenToolIcon className="w-4 h-4 text-indigo-500"/>
+                            Variables Detectadas
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                            La IA ha identificado los siguientes datos variables en el contrato. Selecciona cuáles deseas convertir en campos dinámicos.
+                        </p>
+
+                        <div className="space-y-3">
+                            {Object.keys(variableMap).map(key => {
+                                const val = (contractData as any)[key];
+                                if (!val) return null;
+                                return (
+                                    <div key={key} className={`p-3 rounded-xl border transition-all cursor-pointer ${selectedVars[key] ? 'bg-white border-indigo-200 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}
+                                         onClick={() => setSelectedVars({...selectedVars, [key]: !selectedVars[key]})}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-bold text-gray-700">{labelMap[key]}</span>
+                                            {selectedVars[key] && <CheckIcon className="w-4 h-4 text-indigo-600"/>}
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-400 font-mono truncate max-w-[120px]" title={val}>{val}</span>
+                                            <ArrowLeftIcon className="w-3 h-3 text-gray-300"/>
+                                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold border border-indigo-100">{variableMap[key]}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Preview Area */}
+                    <div className="flex-1 bg-gray-200 p-8 overflow-y-auto flex justify-center">
+                        <div className="bg-white shadow-xl w-full max-w-2xl min-h-full p-12 border border-gray-200">
+                             <div className="mb-4 text-xs font-bold text-gray-300 uppercase tracking-widest text-center border-b border-gray-100 pb-2">Vista Previa de la Plantilla</div>
+                             <div 
+                                className="prose prose-sm max-w-none font-serif text-gray-800 text-justify"
+                                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                             />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-gray-200 bg-white flex justify-end gap-3 z-10">
+                    <button onClick={onClose} className="px-6 py-3 text-gray-600 font-bold text-sm hover:bg-gray-50 rounded-xl transition-colors">Cancelar</button>
+                    <button onClick={handleConfirm} className="px-8 py-3 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 shadow-lg flex items-center gap-2">
+                        <LayoutIcon className="w-4 h-4"/>
+                        Guardar Plantilla
                     </button>
                 </div>
             </div>
@@ -251,11 +409,7 @@ const Step1AIChat = ({
 
     const handleGeneratePreview = async () => {
         setIsGeneratingPreview(true);
-        // Get full context
         const fullContext = messages.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.text}`).join('\n');
-        
-        // Generate with generic data but specific context
-        // Merge existing data just in case user filled something before
         const contractDataToGen = {
             ...data,
             description: fullContext
@@ -268,7 +422,6 @@ const Step1AIChat = ({
     };
 
     const handleConfirm = () => {
-        // Sync final content if edited
         if (editorRef.current) {
             updateData('contentBody', editorRef.current.innerHTML);
         }
@@ -276,9 +429,9 @@ const Step1AIChat = ({
     };
 
     return (
-        <div className="flex flex-col lg:flex-row h-full gap-6 animate-fade-in pt-4">
+        <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-6 animate-fade-in">
             {/* Chat Column */}
-            <div className="w-full lg:w-1/3 bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+            <div className="w-full lg:w-1/3 bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden flex flex-col h-full">
                  {/* Header */}
                 <div className="p-4 border-b border-gray-100 flex items-center gap-3 bg-white shrink-0">
                     <div className="w-10 h-10 bg-gradient-to-tr from-[#8B5CF6] to-[#6366F1] rounded-full flex items-center justify-center text-white shadow-md">
@@ -360,8 +513,8 @@ const Step1AIChat = ({
                 </div>
             </div>
 
-            {/* Preview Column */}
-            <div className="flex-1 bg-gray-100 rounded-3xl border border-gray-200 shadow-inner flex flex-col overflow-hidden relative h-[calc(100vh-140px)]">
+            {/* Preview Column - Updated to PAPER STYLE */}
+            <div className="flex-1 bg-gray-100 rounded-3xl border border-gray-200 shadow-inner flex flex-col overflow-hidden relative">
                 {previewContent ? (
                     <>
                          {/* Toolbar */}
@@ -381,11 +534,11 @@ const Step1AIChat = ({
                             </button>
                         </div>
                         
-                        {/* Editor */}
+                        {/* Editor - Paper Style */}
                         <div className="flex-1 overflow-y-auto p-8 flex justify-center">
                             <div 
                                 ref={editorRef}
-                                className="bg-white shadow-xl w-full max-w-[800px] min-h-[800px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800"
+                                className="bg-white shadow-xl min-h-[1000px] w-full max-w-[800px] p-12 outline-none prose prose-sm max-w-none font-serif text-gray-800 text-justify border border-gray-200"
                                 contentEditable
                                 suppressContentEditableWarning
                                 dangerouslySetInnerHTML={{ __html: previewContent }}
@@ -424,7 +577,7 @@ const Step2 = ({
     handleNext,
     onPreview,
     isLawyerValidation,
-    contractId // Prop for ID
+    step
 }: any) => {
     // Determine Template Type for Dynamic Fields
     const templateName = (data.templateName || '').toLowerCase();
@@ -496,7 +649,7 @@ const Step2 = ({
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-left max-w-md mx-auto space-y-4">
                     <div className="flex justify-between text-sm py-2 border-b border-gray-50">
                         <span className="text-gray-500">Ticket de Solicitud</span>
-                        <span className="font-mono font-bold text-gray-900">{contractId}</span>
+                        <span className="font-mono font-bold text-gray-900">REQ-{Math.floor(Math.random()*10000)}</span>
                     </div>
                     <div className="flex justify-between text-sm py-2 border-b border-gray-50">
                         <span className="text-gray-500">Tiempo de Respuesta</span>
@@ -518,9 +671,9 @@ const Step2 = ({
     }
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in h-full pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in h-full">
             {/* Form Column */}
-            <div className="lg:col-span-1 space-y-6 overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
+            <div className="lg:col-span-1 space-y-6 overflow-y-auto max-h-[85vh] pr-2 custom-scrollbar">
                 <div className={`bg-white p-6 rounded-2xl border shadow-sm ${isLawyerValidation ? 'border-purple-200' : 'border-gray-200'}`}>
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2">
@@ -674,7 +827,422 @@ const Step2 = ({
     );
 };
 
-export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, onFinish, existingContract, initialTemplate, templates, currentStep, setStep, creationMethod, setCreationMethod }) => {
+const Step3 = ({ approvals, setApprovals, role, onNext, step, creationMethod }: any) => {
+    const [newApproverName, setNewApproverName] = useState('');
+    const [newApproverEmail, setNewApproverEmail] = useState('');
+
+    const removeApprover = (index: number) => {
+        const newApprovals = [...approvals];
+        newApprovals.splice(index, 1);
+        setApprovals(newApprovals);
+    };
+
+    const addApprover = () => {
+        if (!newApproverName.trim()) return;
+        setApprovals([...approvals, { 
+            area: newApproverName, 
+            email: newApproverEmail, 
+            status: 'PENDING' 
+        }]);
+        setNewApproverName('');
+        setNewApproverEmail('');
+    };
+
+    const handleSkip = () => {
+        if (confirm("¿Deseas omitir las aprobaciones?")) {
+            setApprovals([]);
+            onNext();
+        }
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto animate-fade-in py-8">
+            <div className="text-center mb-10">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">PROCESO ESTÁNDAR</div>
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Gestión de Aprobaciones</h2>
+                <p className="text-gray-500 max-w-lg mx-auto leading-relaxed">
+                    Indica qué áreas o personas deben validar este documento. Si no se requiere ninguna validación, puedes omitir este paso.
+                </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-[32px] p-8 md:p-12 border border-gray-200/60 shadow-sm relative">
+                {/* Dashed Border Container */}
+                <div className="border-2 border-dashed border-indigo-200/60 rounded-3xl p-6 relative bg-white/40 min-h-[300px] flex flex-col">
+                    {/* List */}
+                    <div className="space-y-4 mb-8 flex-1">
+                         {approvals.length === 0 ? (
+                             <div className="text-center py-12 text-gray-400 flex flex-col items-center justify-center h-full">
+                                 <UsersIcon className="w-12 h-12 mb-3 opacity-20"/>
+                                 <p className="text-sm font-medium">No hay aprobadores asignados</p>
+                                 <p className="text-xs">Agrega personas o áreas usando el formulario inferior</p>
+                             </div>
+                         ) : (
+                             approvals.map((approval: any, index: number) => (
+                                 <div key={index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group hover:border-indigo-100 transition-all">
+                                     <div className="flex items-center gap-5">
+                                         <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center font-bold text-gray-400 text-lg">
+                                             {index + 1}
+                                         </div>
+                                         <div>
+                                             <h4 className="font-bold text-gray-900 text-lg">{approval.area}</h4>
+                                             {approval.email && (
+                                                 <p className="text-xs text-gray-500">{approval.email}</p>
+                                             )}
+                                             <div className="flex items-center gap-2 mt-1">
+                                                 <span className={`w-2 h-2 rounded-full ${approval.status === 'APPROVED' ? 'bg-green-500' : (approval.status === 'REJECTED' ? 'bg-red-500' : 'bg-amber-400')}`}></span>
+                                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                                                     {approval.status === 'PENDING' ? 'PENDIENTE' : approval.status}
+                                                 </span>
+                                             </div>
+                                         </div>
+                                     </div>
+
+                                     <div className="flex items-center gap-4">
+                                         <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-200">
+                                             EN REVISIÓN
+                                         </span>
+                                         {role === 'CLIENT' && (
+                                             <button 
+                                                onClick={() => removeApprover(index)}
+                                                className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                                             >
+                                                 <XIcon className="w-5 h-5"/>
+                                             </button>
+                                         )}
+                                     </div>
+                                 </div>
+                             ))
+                         )}
+                    </div>
+
+                    {/* Input */}
+                    {role === 'CLIENT' && (
+                        <div className="flex gap-2 bg-white p-2 rounded-2xl border border-gray-200 shadow-sm">
+                            <div className="flex-1 flex flex-col md:flex-row gap-2">
+                                <input 
+                                    className="flex-1 bg-transparent px-4 py-3 outline-none text-sm font-medium text-gray-700 placeholder:text-gray-400 border-b md:border-b-0 md:border-r border-gray-100"
+                                    placeholder="Nombre o Área (Ej. Marketing)"
+                                    value={newApproverName}
+                                    onChange={(e) => setNewApproverName(e.target.value)}
+                                />
+                                <input 
+                                    className="flex-1 bg-transparent px-4 py-3 outline-none text-sm font-medium text-gray-700 placeholder:text-gray-400"
+                                    placeholder="Correo electrónico (Opcional)"
+                                    value={newApproverEmail}
+                                    onChange={(e) => setNewApproverEmail(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && addApprover()}
+                                />
+                            </div>
+                            <button 
+                                onClick={addApprover}
+                                className="bg-gray-900 hover:bg-black text-white w-14 rounded-xl flex items-center justify-center shadow-md transition-colors"
+                            >
+                                <PlusIcon className="w-6 h-6"/>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Demo Link */}
+             <div className="text-center mt-6 mb-12">
+                 <button 
+                    onClick={() => {
+                        const newApprovals = approvals.map((a: any) => ({ ...a, status: 'APPROVED', date: new Date().toLocaleDateString(), approverName: 'Sistema' }));
+                        setApprovals(newApprovals);
+                    }}
+                    className="text-sm text-indigo-500 hover:text-indigo-700 underline font-medium"
+                 >
+                     (Demo: Simular Aprobación de Áreas)
+                 </button>
+             </div>
+
+            {/* Footer */}
+            <div className="flex justify-between items-center border-t border-gray-100 pt-8">
+                 <button 
+                    onClick={handleSkip}
+                    className="text-gray-400 hover:text-gray-600 font-bold text-sm transition-colors"
+                 >
+                    Omitir este paso
+                 </button>
+
+                 <div className="flex items-center gap-6">
+                     <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+                        <SparklesIcon className="w-4 h-4"/>
+                        Las notificaciones se envían automáticamente.
+                     </div>
+                     <button 
+                        onClick={onNext}
+                        className="bg-[#4F46E5] text-white px-10 py-4 rounded-xl font-bold text-base shadow-xl hover:bg-[#4338CA] transition-all hover:-translate-y-1"
+                     >
+                        Siguiente
+                     </button>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
+const Step4 = ({ signers, setSigners, onNext, step, creationMethod }: { signers: Signer[], setSigners: (s: Signer[]) => void, onNext: () => void, step: number, creationMethod: 'STANDARD'|'AI' }) => {
+    return (
+      <div className="max-w-5xl mx-auto animate-fade-in space-y-8">
+          <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm">
+            <div className="flex justify-between items-end mb-8">
+                <div>
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Proceso Estándar</div>
+                    <h2 className="text-3xl font-extrabold text-gray-900">Firmantes</h2>
+                    <p className="text-gray-500 mt-2">Gestión de Firmantes<br/>Configura quiénes deben firmar y en qué orden.</p>
+                </div>
+                <button 
+                    onClick={() => setSigners([...signers, { id: Date.now().toString(), name: '', email: '', role: 'Parte B', order: signers.length + 1, status: 'PENDING', type: 'EXTERNAL' }])}
+                    className="bg-gray-900 text-white px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-800 shadow-lg transition-colors">
+                    <UsersIcon className="w-4 h-4"/> Agregar Firmante
+                </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-12 bg-gray-50 p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <div className="col-span-1 text-center">#</div>
+                    <div className="col-span-4">DATOS DEL FIRMANTE</div>
+                    <div className="col-span-2">ROL</div>
+                    <div className="col-span-3 text-center">TIPO DE USUARIO</div>
+                    <div className="col-span-1 text-center">ORDEN</div>
+                    <div className="col-span-1"></div>
+                </div>
+                <div className="divide-y divide-gray-100">
+                    {signers.map((signer, index) => (
+                        <div key={signer.id} className="grid grid-cols-12 p-5 items-start gap-4 hover:bg-gray-50 transition-colors">
+                            <div className="col-span-1 flex justify-center pt-2">
+                                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm">
+                                    {index + 1}
+                                </div>
+                            </div>
+                            <div className="col-span-4 space-y-3">
+                                {/* Stacked Inputs for Name and Email */}
+                                <div className="p-3 border border-dashed border-blue-200 rounded-xl bg-blue-50/30">
+                                    <input 
+                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:font-normal mb-2"
+                                        placeholder="Nombre Completo"
+                                        value={signer.name}
+                                        onChange={(e) => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].name = e.target.value;
+                                            setSigners(newSigners);
+                                        }}
+                                    />
+                                    <input 
+                                        className="w-full bg-transparent border-b border-gray-300 focus:border-indigo-500 outline-none text-xs text-gray-600 py-1"
+                                        placeholder="Correo electrónico"
+                                        value={signer.email}
+                                        onChange={(e) => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].email = e.target.value;
+                                            setSigners(newSigners);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-span-2 pt-2">
+                                <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                                    <select 
+                                        className="w-full bg-white text-sm px-3 py-2 outline-none cursor-pointer"
+                                        value={signer.role}
+                                        onChange={(e) => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].role = e.target.value as any;
+                                            setSigners(newSigners);
+                                        }}
+                                    >
+                                        <option value="Parte A">Parte A</option>
+                                        <option value="Parte B">Parte B</option>
+                                        <option value="Testigo">Testigo</option>
+                                        <option value="Revisor">Revisor</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="col-span-3 pt-2 px-4">
+                                <div className="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
+                                    <button 
+                                        onClick={() => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].type = 'REGISTERED';
+                                            setSigners(newSigners);
+                                        }}
+                                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${signer.type === 'REGISTERED' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                        Registrado
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].type = 'EXTERNAL';
+                                            setSigners(newSigners);
+                                        }}
+                                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${signer.type === 'EXTERNAL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                                        Externo
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="col-span-1 pt-2">
+                                <div className="w-full border border-gray-200 rounded-lg bg-white">
+                                    <input 
+                                        type="number"
+                                        className="w-full text-center text-sm font-bold py-2 outline-none rounded-lg"
+                                        value={signer.order}
+                                        onChange={(e) => {
+                                            const newSigners = [...signers];
+                                            newSigners[index].order = parseInt(e.target.value);
+                                            setSigners(newSigners);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-span-1 flex justify-center pt-2">
+                                <button 
+                                    onClick={() => setSigners(signers.filter(s => s.id !== signer.id))}
+                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                                    <XIcon className="w-5 h-5"/>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {signers.length === 0 && (
+                        <div className="p-10 text-center text-gray-400">
+                            <UsersIcon className="w-10 h-10 mx-auto mb-2 opacity-50"/>
+                            <p>No hay firmantes asignados</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            <div className="flex justify-between items-center pt-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
+                    <LockIcon className="w-4 h-4"/>
+                    <span>Seguridad: Firma digital con sellado de tiempo (TSA).</span>
+                </div>
+                <button onClick={onNext} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl hover:bg-indigo-700 hover:-translate-y-1 transition-all">
+                    Finalizar y Enviar a Firma
+                </button>
+            </div>
+          </div>
+      </div>
+    );
+};
+
+const Step5 = ({ onFinish, code, onReset, data, onConvert }: any) => (
+    <div className="max-w-xl mx-auto text-center py-20 animate-scale-in">
+        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm">
+            <CheckIcon className="w-12 h-12 text-green-600" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">¡Contrato Generado!</h2>
+        <p className="text-gray-500 mb-8">
+            El proceso de firma ha iniciado. Se han enviado las notificaciones correspondientes a los firmantes.
+        </p>
+        
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-8">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-500 uppercase">Código de Contrato</span>
+                <span className="font-mono text-lg font-bold text-indigo-600">{code}</span>
+            </div>
+             <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-gray-500 uppercase">Estado Actual</span>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold border border-blue-200">En Proceso de Firma</span>
+            </div>
+        </div>
+
+        {/* AI Template Suggestion */}
+        {data?.creationMethod === 'AI' && (
+            <div className="mb-8 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-indigo-100 relative overflow-hidden group hover:shadow-md transition-all cursor-pointer" onClick={onConvert}>
+                <div className="absolute top-0 right-0 p-2">
+                    <SparklesIcon className="w-12 h-12 text-indigo-200 opacity-50 rotate-12" />
+                </div>
+                <div className="flex items-start gap-4 relative z-10 text-left">
+                     <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm border border-purple-100 shrink-0">
+                         <LayoutIcon className="w-5 h-5" />
+                     </div>
+                     <div>
+                         <h4 className="font-bold text-gray-900 text-sm mb-1">Convertir a Plantilla Inteligente</h4>
+                         <p className="text-xs text-gray-600 leading-relaxed mb-3">
+                             Hemos detectado patrones en este contrato. Guárdalo como plantilla para reutilizarlo en el futuro.
+                         </p>
+                         <button className="text-xs font-bold text-indigo-700 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm hover:bg-indigo-50 transition-colors">
+                             ✨ Revisar y Guardar
+                         </button>
+                     </div>
+                </div>
+            </div>
+        )}
+
+        <div className="flex justify-center gap-4">
+             <button 
+               onClick={() => onFinish({} as any)} 
+               className="px-6 py-3 border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
+                 Ir a Mis Contratos
+             </button>
+             <button 
+               onClick={onReset}
+               className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors">
+                 Crear Nueva Solicitud
+             </button>
+        </div>
+    </div>
+);
+
+const PreviewModal = ({ isOpen, onClose, contentBody, isLoading, onEdit, onNext, role, isAI }: any) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-5xl h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+                {/* Header */}
+                <div className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white border border-gray-200 rounded-lg flex items-center justify-center text-gray-500">
+                            <FileTextIcon className="w-5 h-5"/>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-lg text-gray-900">Vista Previa del Contrato</h3>
+                            <p className="text-xs text-gray-500">Borrador Preliminar</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-400 hover:text-red-500 transition-colors">
+                        <XIcon className="w-6 h-6"/>
+                    </button>
+                </div>
+                
+                {/* Document Body - PAPER STYLE */}
+                <div className="flex-1 overflow-y-auto p-8 bg-gray-100 flex justify-center">
+                    <div className="bg-white shadow-xl min-h-[1000px] w-full max-w-[800px] p-12 md:p-16 border border-gray-200 print:shadow-none">
+                         {isLoading ? (
+                             <div className="flex flex-col items-center justify-center py-32">
+                                 <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+                                 <p className="text-indigo-600 font-bold">Generando documento...</p>
+                                 <p className="text-xs text-gray-400 mt-2">Esto puede tomar unos segundos</p>
+                             </div>
+                         ) : (
+                             <div className="prose prose-sm max-w-none text-gray-800 font-serif leading-relaxed text-justify" dangerouslySetInnerHTML={{ __html: contentBody || '' }} />
+                         )}
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 border-t border-gray-200 flex justify-end gap-4 bg-white z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    <button onClick={onEdit} className="px-6 py-3 text-gray-600 font-bold hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200">
+                        Editar Datos
+                    </button>
+                    <button 
+                      onClick={onNext}
+                      className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition-all flex items-center gap-2">
+                        <CheckIcon className="w-5 h-5"/>
+                        {role === 'LAWYER' && isAI ? 'Validar Contrato' : 'Guardar y Continuar'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, onFinish, onSaveTemplate, existingContract, initialTemplate, templates, setStepInfo }) => {
+  const [step, setStep] = useState(1);
   const [data, setData] = useState<ContractData>(existingContract?.data || INITIAL_DATA);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   
@@ -692,22 +1260,56 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   // Template Selector state (if starting from scratch)
   const [showTemplateSelector, setShowTemplateSelector] = useState(!existingContract && !initialTemplate);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
 
-  // New State for Contract ID (Stable for session)
-  const [generatedId, setGeneratedId] = useState(existingContract?.id || '');
+  // Define steps
+  const steps = data.creationMethod === 'AI' 
+      ? ['Asistente IA', 'Revisión', 'Aprobaciones', 'Firma', 'Fin']
+      : ['Selección', 'Datos', 'Aprobaciones', 'Firma', 'Fin'];
+
+  // Update header info when step or data changes
+  useEffect(() => {
+      let title = "Nueva Solicitud";
+      let subtitle = "Selección de Método";
+
+      if (step === 2) {
+          if (data.creationMethod === 'AI') {
+              title = "Asistente de Creación";
+              subtitle = showAIWait ? "Solicitud en Proceso" : "Creación Asistida";
+          } else {
+              title = "Detalles del Contrato";
+              subtitle = "Información del Documento";
+          }
+      } else if (step === 3) {
+          title = "Gestión de Aprobaciones";
+          subtitle = "Validación Interna";
+      } else if (step === 4) {
+          title = "Gestión de Firmantes";
+          subtitle = "Configuración de Firmas";
+      } else if (step === 5) {
+          title = "Proceso Finalizado";
+          subtitle = "Contrato Generado";
+      }
+
+      setStepInfo({
+          step,
+          total: steps.length,
+          labels: steps,
+          title,
+          subtitle
+      });
+  }, [step, data.creationMethod, showAIWait, setStepInfo]);
 
   // Initialize
   useEffect(() => {
       if (initialTemplate) {
           setData(prev => ({ ...prev, creationMethod: 'STANDARD', templateId: initialTemplate.id, templateName: initialTemplate.name }));
-          setCreationMethod('STANDARD');
           setShowTemplateSelector(false);
           setStep(2); // Jump to data entry
       }
 
       if (existingContract) {
           setShowTemplateSelector(false);
-          setCreationMethod(existingContract.data?.creationMethod || 'STANDARD');
           // Restore state based on status
           if (existingContract.status === 'PENDING_LEGAL_VALIDATION') {
              if (role === 'CLIENT') {
@@ -741,8 +1343,8 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
 
   const handleNext = async () => {
     // Step 2: Data Entry (Standard) or AI Wait (Flow B)
-    if (currentStep === 2) {
-        if (creationMethod === 'AI') {
+    if (step === 2) {
+        if (data.creationMethod === 'AI') {
             if (role === 'CLIENT' && showAIWait) {
                 // Client is waiting, cannot proceed manually unless "Finish"
                 handleSaveDraft('PENDING_LEGAL_VALIDATION');
@@ -752,7 +1354,6 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
             if (role === 'LAWYER' && existingContract?.status === 'PENDING_LEGAL_VALIDATION') {
                 // Update status to INTERNAL_REVIEW (Approved by Lawyer)
                 handleSaveDraft('INTERNAL_REVIEW');
-                // Optional: Alert or just proceed
                 alert("Solicitud validada. Iniciando fase de aprobaciones.");
                 setStep(3);
                 return;
@@ -764,7 +1365,7 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
         }
     } 
     // Step 3: Approvals
-    else if (currentStep === 3) {
+    else if (step === 3) {
         const allApproved = approvals.every(a => a.status === 'APPROVED');
         if (approvals.length > 0 && !allApproved && role === 'CLIENT') {
             alert("Aún hay aprobaciones pendientes. La solicitud avanzará automáticamente cuando se completen. (Para esta demo, puedes simular la aprobación con el enlace inferior)");
@@ -773,7 +1374,7 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
         setStep(4);
     } 
     // Step 4: Signers
-    else if (currentStep === 4) {
+    else if (step === 4) {
         if (signers.length === 0) {
             alert("Debe agregar al menos un firmante.");
             return;
@@ -783,9 +1384,8 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   };
 
   const handleSaveDraft = (status: ContractState = 'DRAFT') => {
-      const finalId = existingContract?.id || generatedId || `CTR-${Math.floor(Math.random() * 10000)}`;
       const draft: SavedContract = {
-          id: finalId,
+          id: existingContract?.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
           name: data.serviceName || (data.creationMethod === 'AI' ? 'Solicitud IA' : `Contrato ${data.templateName || 'Borrador'}`),
           type: data.creationMethod === 'AI' ? 'IA' : (data.templateName || 'Servicios'),
           date: new Date().toLocaleDateString(),
@@ -800,12 +1400,10 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
   };
 
   const handleFinishContract = () => {
-      // Use the stable ID
-      const finalId = existingContract?.id || generatedId || `CTR-${Math.floor(Math.random() * 10000)}`;
-      setGeneratedCode(finalId);
-      
+      const finalCode = 'CTR-' + Math.floor(Math.random() * 10000);
+      setGeneratedCode(finalCode);
       const finalContract: SavedContract = {
-          id: finalId,
+          id: existingContract?.id || Math.random().toString(36).substr(2, 9).toUpperCase(),
           name: data.serviceName || 'Contrato Final',
           type: data.creationMethod === 'AI' ? 'IA' : 'Estándar',
           date: new Date().toLocaleDateString(),
@@ -835,25 +1433,43 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
       setStep(2);
   };
 
-  // We remove the internal header since steps are now global in App.tsx
+  const handleConvertTemplate = (templateData: Partial<ContractTemplate>) => {
+      // Mock converting contract to template
+      const newTemplate: ContractTemplate = {
+          id: `TPL-AI-${Date.now()}`,
+          name: templateData.name || 'Nueva Plantilla',
+          description: templateData.description || 'Generada por IA',
+          category: templateData.category || 'IA',
+          color: templateData.color || 'bg-purple-50',
+          icon: templateData.icon || '🧠',
+          content: templateData.content || data.contentBody,
+          isPrivate: true
+      };
+      
+      if (onSaveTemplate) {
+          const contractWrapper: SavedContract = {
+              ...existingContract!, // or current state
+              id: 'TEMP-CONVERSION',
+              name: newTemplate.name,
+              status: 'COMPLETED',
+              type: 'TEMPLATE',
+              date: new Date().toLocaleDateString(),
+              signers: [],
+              data: { ...data, contentBody: newTemplate.content }
+          };
+          onSaveTemplate(contractWrapper);
+      }
+      setIsConversionModalOpen(false);
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-[1400px] mx-auto min-h-full flex flex-col">
+      {/* Step Indicator and Header Logic Moved to App.tsx via setStepInfo */}
       {/* Content */}
       <div className="flex-1 relative">
-         {currentStep === 1 && (showTemplateSelector ? (
+         {step === 1 && (showTemplateSelector ? (
              <Step1Selection onSelect={(method) => { 
-                setCreationMethod(method);
                 updateData('creationMethod', method); 
-                
-                // Generate ID based on method if new
-                if (!existingContract) {
-                     const newId = method === 'AI' 
-                        ? `REQ-IA-${Math.floor(Math.random() * 9000) + 1000}`
-                        : `CTR-${Math.floor(Math.random() * 9000) + 1000}`;
-                     setGeneratedId(newId);
-                }
-
                 if(method === 'STANDARD') {
                     setIsTemplateModalOpen(true);
                 } else {
@@ -871,7 +1487,7 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
              />
          ))}
 
-         {currentStep === 2 && (
+         {step === 2 && (
              <Step2 
                 role={role}
                 data={data}
@@ -881,68 +1497,39 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
                 handleNext={handleNext}
                 onPreview={() => { if(!data.contentBody) generateDocument(); setIsPreviewOpen(true); }}
                 isLawyerValidation={role === 'LAWYER' && data.creationMethod === 'AI'}
-                contractId={existingContract?.id || generatedId}
+                step={step}
              />
          )}
 
-         {currentStep === 3 && (
-             // Step3 (Approval) Logic needs to be imported or defined, assuming it's imported in original file context
-             // For brevity in this diff, assuming the component exists as defined in previous context
-             <div className="max-w-4xl mx-auto animate-fade-in py-8">
-                 {/* Re-using Step3 Component logic from original file... */}
-                 {/* Since I cannot import "Step3" if it's defined in the same file, I will just render it here conceptually */}
-                  {/* ... Existing Step 3 Render Logic ... */}
-                  {/* To keep file correct, I'll assume Step3 is defined above in the full file content provided previously */}
-                  <div className="max-w-4xl mx-auto animate-fade-in py-8">
-                    <div className="text-center mb-10">
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">PROCESO ESTÁNDAR</div>
-                        <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Gestión de Aprobaciones</h2>
-                        <p className="text-gray-500 max-w-lg mx-auto leading-relaxed">
-                            Indica qué áreas o personas deben validar este documento.
-                        </p>
-                    </div>
-                     <div className="bg-gray-50 rounded-[32px] p-8 border border-gray-200/60 shadow-sm relative text-center">
-                         <p className="text-gray-500 mb-4">Simulación de componente de Aprobaciones...</p>
-                         <button 
-                            onClick={handleNext}
-                            className="bg-[#4F46E5] text-white px-10 py-4 rounded-xl font-bold text-base shadow-xl hover:bg-[#4338CA]"
-                         >
-                            Siguiente (Simulado)
-                         </button>
-                     </div>
-                  </div>
-             </div>
+         {step === 3 && (
+             <Step3 
+                approvals={approvals}
+                setApprovals={setApprovals}
+                role={role}
+                onNext={handleNext}
+                step={step}
+                creationMethod={data.creationMethod}
+             />
          )}
 
-         {currentStep === 4 && (
-             <div className="max-w-5xl mx-auto animate-fade-in space-y-8">
-                 <div className="flex justify-between items-end">
-                      <h2 className="text-2xl font-extrabold text-gray-900">Firmantes</h2>
-                 </div>
-                 {/* Simplified Render for Step 4 */}
-                 <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
-                     <p className="mb-4 text-gray-500">Gestión de firmantes...</p>
-                     <button onClick={handleNext} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold shadow-xl">
-                        Finalizar y Enviar
-                     </button>
-                 </div>
-             </div>
+         {step === 4 && (
+             <Step4 
+                signers={signers} 
+                setSigners={setSigners} 
+                onNext={handleNext}
+                step={step}
+                creationMethod={data.creationMethod}
+             />
          )}
 
-         {currentStep === 5 && (
-             <div className="max-w-xl mx-auto text-center py-20 animate-scale-in">
-                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm">
-                    <CheckIcon className="w-12 h-12 text-green-600" />
-                </div>
-                <h2 className="text-3xl font-extrabold text-gray-900 mb-2">¡Contrato Generado!</h2>
-                <div className="flex justify-center gap-4 mt-8">
-                     <button 
-                       onClick={() => onFinish({} as any)} 
-                       className="px-6 py-3 border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
-                         Ir a Mis Contratos
-                     </button>
-                </div>
-            </div>
+         {step === 5 && (
+             <Step5 
+                onFinish={onFinish} 
+                code={generatedCode} 
+                onReset={handleReset}
+                data={data}
+                onConvert={() => setIsConversionModalOpen(true)}
+             />
          )}
       </div>
       
@@ -966,33 +1553,17 @@ export const CreateContract: React.FC<CreateContractProps> = ({ role, onBack, on
             onSelect={handleTemplateSelection} 
           />
       )}
+
+      {/* Template Conversion Modal */}
+      {isConversionModalOpen && (
+          <TemplateConversionModal 
+            isOpen={isConversionModalOpen}
+            onClose={() => setIsConversionModalOpen(false)}
+            contractData={data}
+            originalContent={data.contentBody || ''}
+            onConfirm={handleConvertTemplate}
+          />
+      )}
     </div>
   );
-};
-
-// Re-declaring PreviewModal locally since it was in the original file but might be lost in diff if not careful.
-// In a real scenario, this should be a separate component file.
-const PreviewModal = ({ isOpen, onClose, contentBody, isLoading, onEdit, onNext, role, isAI }: any) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
-                <div className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="font-bold text-lg text-gray-900">Vista Previa</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-400 hover:text-red-500 transition-colors">
-                        <XIcon className="w-6 h-6"/>
-                    </button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
-                    <div className="bg-white shadow-xl p-16 max-w-[850px] mx-auto min-h-[1000px] print:shadow-none">
-                         {isLoading ? <p>Generando...</p> : <div className="prose prose-sm max-w-none text-gray-800 font-serif leading-relaxed" dangerouslySetInnerHTML={{ __html: contentBody || '' }} />}
-                    </div>
-                </div>
-                <div className="p-6 border-t border-gray-100 flex justify-end gap-4 bg-white z-10">
-                    <button onClick={onEdit} className="px-6 py-3 text-gray-600 font-bold hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200">Editar Datos</button>
-                    <button onClick={onNext} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition-all flex items-center gap-2"><CheckIcon className="w-5 h-5"/> Guardar y Continuar</button>
-                </div>
-            </div>
-        </div>
-    );
 };

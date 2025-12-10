@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { ArrowLeftIcon, ChevronRightIcon, LinkIcon, CheckIcon, PenToolIcon } from '../components/Icons';
+import { ArrowLeftIcon, ChevronRightIcon, LinkIcon, CheckIcon, PenToolIcon, BellIcon, MessageCircleIcon } from '../components/Icons';
 import { UserProfile } from '../types';
 
 interface SettingsProps {
@@ -8,10 +9,15 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ profile, onUpdate }) => {
-    const [activeTab, setActiveTab] = useState<'Compañia' | 'Servicios' | 'Perfil' | 'Integraciones'>('Compañia');
+    const [activeTab, setActiveTab] = useState<'Compañia' | 'Servicios' | 'Perfil' | 'Integraciones' | 'Notificaciones'>('Compañia');
     const [localProfile, setLocalProfile] = useState<UserProfile>(profile);
     const [showSaved, setShowSaved] = useState(false);
     const [defaultSignatureProvider, setDefaultSignatureProvider] = useState('PRISMA');
+    
+    // Notification States
+    const [notifEmail, setNotifEmail] = useState(true);
+    const [notifSlack, setNotifSlack] = useState(false);
+    const [notifWhatsApp, setNotifWhatsApp] = useState(false);
 
     const handleSave = () => {
         onUpdate(localProfile);
@@ -172,6 +178,75 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onUpdate }) => {
 
                 </div>
             );
+        } else if (activeTab === 'Notificaciones') {
+            return (
+                <div className="space-y-8 animate-fade-in max-w-3xl">
+                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 flex items-start gap-4">
+                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-purple-600 shadow-sm shrink-0">
+                            <BellIcon className="w-5 h-5"/>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-gray-900 mb-1">Preferencias de Alertas</h4>
+                            <p className="text-sm text-gray-600">
+                                Configura por qué medios deseas recibir notificaciones sobre el estado de tus contratos, firmas pendientes y vencimientos.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Email */}
+                        <div className="flex items-center justify-between p-5 bg-white border border-gray-200 rounded-2xl hover:border-indigo-200 transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-500">
+                                    <span className="font-bold text-lg">@</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900">Correo Electrónico</h4>
+                                    <p className="text-xs text-gray-500">Recibir resúmenes y alertas críticas.</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" checked={notifEmail} onChange={() => setNotifEmail(!notifEmail)} />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+
+                        {/* Slack */}
+                        <div className="flex items-center justify-between p-5 bg-white border border-gray-200 rounded-2xl hover:border-indigo-200 transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-500">
+                                    <span className="font-bold text-lg">#</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900">Slack</h4>
+                                    <p className="text-xs text-gray-500">Mensajes directos para actualizaciones rápidas.</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" checked={notifSlack} onChange={() => setNotifSlack(!notifSlack)} />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+
+                        {/* WhatsApp */}
+                        <div className="flex items-center justify-between p-5 bg-white border border-gray-200 rounded-2xl hover:border-indigo-200 transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 border border-green-100">
+                                    <MessageCircleIcon className="w-6 h-6"/>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900">WhatsApp</h4>
+                                    <p className="text-xs text-gray-500">Notificaciones urgentes a tu móvil.</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" checked={notifWhatsApp} onChange={() => setNotifWhatsApp(!notifWhatsApp)} />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            );
         } else {
             return (
                 <div className="space-y-8 animate-fade-in">
@@ -228,7 +303,7 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onUpdate }) => {
              </div>
 
              <div className="flex gap-8 mb-8 border-b-2 border-gray-100 overflow-x-auto">
-                 {['Compañia', 'Servicios', 'Perfil', 'Integraciones'].map((tab) => (
+                 {['Compañia', 'Servicios', 'Perfil', 'Integraciones', 'Notificaciones'].map((tab) => (
                      <button 
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}

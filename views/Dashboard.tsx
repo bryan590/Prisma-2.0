@@ -194,8 +194,10 @@ const ClientTemplates: React.FC<Omit<DashboardProps, 'role' | 'onReviewContract'
   ];
 
   const filteredTemplates = activeFilter === 'Todas' 
-    ? allTemplates.filter(t => t.id !== 'ai-custom') 
-    : allTemplates.filter(t => t.category === activeFilter);
+    ? allTemplates.filter(t => t.id !== 'ai-custom' && !t.isPrivate) // Hide AI Custom button in 'Todas', hide private
+    : activeFilter === 'Mis Plantillas'
+        ? allTemplates.filter(t => t.isPrivate)
+        : allTemplates.filter(t => t.category === activeFilter && !t.isPrivate);
 
   return (
     <div className="p-8 space-y-8 animate-fade-in max-w-[1600px] mx-auto">
@@ -274,56 +276,70 @@ const ClientTemplates: React.FC<Omit<DashboardProps, 'role' | 'onReviewContract'
         </div>
       </div>
       
-      {/* Template Preview Modal */}
+      {/* Template Preview Modal - Updated for Full A4 Paper View with Scroll */}
       {previewTemplate && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative animate-scale-in overflow-hidden flex flex-col">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-5xl h-[95vh] rounded-3xl shadow-2xl relative animate-scale-in overflow-hidden flex flex-col">
                   {/* Header */}
-                  <div className="p-8 pb-4 flex justify-between items-start">
-                      <div>
-                          <h2 className="text-2xl font-bold text-gray-900 mb-1">{previewTemplate.name}</h2>
-                          <div className="h-1 w-20 bg-gray-200 rounded-full mt-4"></div>
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                      <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${previewTemplate.color}`}>
+                              {previewTemplate.icon || '📄'}
+                          </div>
+                          <div>
+                              <h2 className="text-lg font-bold text-gray-900">{previewTemplate.name}</h2>
+                              <p className="text-xs text-gray-500">Vista Previa de la Plantilla</p>
+                          </div>
                       </div>
-                      <button onClick={() => setPreviewTemplate(null)} className="text-gray-400 hover:text-gray-600">
+                      <button onClick={() => setPreviewTemplate(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                           <XIcon className="w-6 h-6" />
                       </button>
                   </div>
 
-                  {/* Content */}
-                  <div className="px-8 py-4 space-y-6">
-                      <p className="text-sm font-medium text-gray-800 italic">
-                          Esta plantilla incluye cláusulas estándar para {previewTemplate.category.toLowerCase()}. Podrás personalizarlas en el siguiente paso.
-                      </p>
-
-                      <div className="space-y-4">
-                          {[1, 2, 3].map((i) => (
-                              <div key={i}>
-                                  <label className="block text-xs font-bold text-gray-500 mb-1.5">Clausula 0{i}:</label>
-                                  <div className="relative">
-                                      <select className="w-full bg-gray-100 border-none rounded-xl py-3 px-4 text-sm text-gray-500 appearance-none outline-none cursor-not-allowed" disabled>
-                                          <option>Contenido predefinido...</option>
-                                      </select>
-                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▼</div>
+                  {/* Content Preview - A4 Paper Style with Scroll */}
+                  <div className="flex-1 overflow-y-auto bg-gray-100 p-8 flex justify-center">
+                      <div className="bg-white shadow-xl min-h-[1123px] w-[794px] p-12 md:p-16 border border-gray-200 shrink-0">
+                          {previewTemplate.content ? (
+                              <div 
+                                className="prose prose-sm max-w-none text-gray-800"
+                                dangerouslySetInnerHTML={{ __html: previewTemplate.content }} 
+                              />
+                          ) : (
+                              <div className="space-y-6 opacity-50">
+                                  {/* Skeleton Content */}
+                                  <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-10"></div>
+                                  <div className="space-y-3">
+                                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                                  </div>
+                                  <div className="h-32 bg-gray-50 rounded w-full border border-dashed border-gray-200 flex items-center justify-center text-gray-400 text-xs">
+                                      Contenido de la plantilla
+                                  </div>
+                                  <div className="space-y-3">
+                                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                      <div className="h-3 bg-gray-200 rounded w-4/5"></div>
                                   </div>
                               </div>
-                          ))}
+                          )}
                       </div>
                   </div>
 
                   {/* Footer */}
-                  <div className="p-8 pt-4 flex gap-4 justify-end mt-4">
+                  <div className="p-5 border-t border-gray-200 bg-white flex justify-end gap-3 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
                       <button 
                         onClick={() => setPreviewTemplate(null)}
-                        className="text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
-                          Cancelar
+                        className="px-6 py-2.5 text-gray-600 font-bold text-sm hover:bg-gray-50 rounded-xl transition-colors">
+                          Cerrar
                       </button>
                       <button 
                         onClick={() => {
                             onUseTemplate(previewTemplate);
                             setPreviewTemplate(null);
                         }}
-                        className="bg-[#C084FC] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#A855F7] transition-colors shadow-md">
-                          Usar Plantilla
+                        className="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-md flex items-center gap-2">
+                          <CheckIcon className="w-4 h-4"/>
+                          Usar ahora
                       </button>
                   </div>
               </div>
